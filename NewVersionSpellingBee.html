@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spelling Bee Pro: Host Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        :root { --primary: #46178f; --accent: #eb1041; --glass: rgba(255, 255, 255, 0.15); }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #222; color: white; overflow: hidden; }
+        
+        .admin-layout { display: grid; grid-template-columns: 360px 1fr; height: 100vh; }
+
+        /* Sidebar Control Center */
+        .sidebar { background: var(--primary); padding: 25px; box-shadow: 5px 0 15px rgba(0,0,0,0.3); overflow-y: auto; z-index: 10; }
+        .sidebar h2 { margin-bottom: 20px; font-size: 1.5rem; display: flex; align-items: center; gap: 10px; }
+        
+        .section-label { font-weight: bold; margin: 15px 0 10px; color: #ccc; font-size: 0.9rem; text-transform: uppercase; }
+        .btn-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        
+        .btn { border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .btn-class { background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); }
+        .btn-class.active { background: #00e5ff; color: #111; border-color: #00e5ff; }
+        
+        .mode-select { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+        .btn-mode { background: rgba(255,255,255,0.1); color: white; text-align: left; padding: 12px; }
+        .btn-mode.active { background: #28a745; border-left: 5px solid white; }
+
+        .word-box { background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; margin: 15px 0; }
+        textarea, select, input { width: 100%; padding: 10px; border-radius: 6px; border: none; margin-top: 5px; box-sizing: border-box; }
+
+        /* Main Stage */
+        .stage { position: relative; background-size: cover !important; background-position: center; display: flex; flex-direction: column; align-items: center; padding: 40px; }
+        .settings-btn { position: absolute; top: 20px; right: 20px; font-size: 2rem; cursor: pointer; opacity: 0.6; transition: 0.3s; }
+        .settings-btn:hover { transform: rotate(90deg); opacity: 1; }
+
+        .timer-circle { width: 140px; height: 140px; border: 6px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 4rem; font-weight: bold; background: rgba(0,0,0,0.3); margin: 20px 0; }
+        #qrcode { background: white; padding: 15px; border-radius: 12px; border: 5px solid #46178f; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+
+        .leaderboard { width: 85%; background: white; color: #333; border-radius: 20px; margin-top: 30px; padding: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.4); }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 12px; border-bottom: 2px solid #eee; }
+        td { padding: 12px; border-bottom: 1px solid #f0f0f0; font-size: 1.1rem; }
+        .top-rank { background: #fff9c4; font-weight: bold; }
+
+        /* Modals */
+        .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; color: #333; padding: 30px; border-radius: 20px; z-index: 100; width: 350px; }
+        .overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:90; }
+    </style>
+</head>
+<body>
+
+<div class="admin-layout">
+    <div class="sidebar">
+        <h2>🤴 Control Center</h2>
+        
+        <div class="section-label">1. Select Class</div>
+        <div class="btn-grid">
+            <button class="btn btn-class" onclick="selectClass(this)">701</button>
+            <button class="btn btn-class" onclick="selectClass(this)">702</button>
+            <button class="btn btn-class" onclick="selectClass(this)">703</button>
+            <button class="btn btn-class" onclick="selectClass(this)">801</button>
+            <button class="btn btn-class" onclick="selectClass(this)">802</button>
+            <button class="btn btn-class" onclick="selectClass(this)">803</button>
+            <button class="btn btn-class" onclick="selectClass(this)">901</button>
+            <button class="btn btn-class" onclick="selectClass(this)">902</button>
+            <button class="btn btn-class" onclick="selectClass(this)">903</button>
+        </div>
+
+        <div class="section-label">2. Mode Settings</div>
+        <div class="mode-select">
+            <button class="btn btn-mode active" id="mGroup" onclick="setMode('group')">👥 Group Mode (1-7)</button>
+            <button class="btn btn-mode" id="mIndiv" onclick="setMode('indiv')">👤 Individual Mode</button>
+        </div>
+
+        <div class="word-box">
+            <div class="section-label" style="color:white; margin-top:0;">3. Word Manager</div>
+            <textarea id="wordInput" rows="2" placeholder="Enter words separated by commas..."></textarea>
+            <select id="wordSelect"><option>Choose word for round...</option></select>
+        </div>
+
+        <button class="btn" style="background:var(--accent); color:white; width:100%; font-size:1.2rem;" onclick="startRound()">🔥 START ROUND</button>
+        <button class="btn" style="background:#0542b9; color:white; width:100%; margin-top:10px;" onclick="calculateResults()">📢 REVEAL & RANK</button>
+        <button class="btn" style="background:#333; color:white; width:100%; margin-top:10px;" onclick="exportCSV()">💾 END & DOWNLOAD</button>
+    </div>
+
+    <div class="stage" id="mainStage" style="background-image: url('https://images.unsplash.com/photo-1503676260728-1c00da094a0b?q=80&w=2000');">
+        <div class="settings-btn" onclick="toggleSettings()">⚙️</div>
+        <h1 id="headerClass">Select Class</h1>
+        
+        <div class="timer-circle" id="timerDisplay">30</div>
+        
+        <div id="qrcode"></div>
+        <p style="margin-top:15px; font-weight:bold;">SCAN TO JOIN GAME</p>
+
+        <div class="leaderboard">
+            <h3>🏆 Rankings</h3>
+            <table>
+                <thead><tr><th>Rank</th><th>Name/Group</th><th>Time</th><th>Score</th></tr></thead>
+                <tbody id="rankBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="overlay" onclick="toggleSettings()"></div>
+<div class="modal" id="settingsModal">
+    <h3>Custom Settings</h3>
+    <label>Background Image URL:</label>
+    <input type="text" id="customBg" placeholder="https://...">
+    <label style="display:block; margin-top:15px;">Theme Color:</label>
+    <input type="color" id="customColor" value="#46178f">
+    <button class="btn" style="background:var(--primary); color:white; width:100%; margin-top:20px;" onclick="applySettings()">Save & Apply</button>
+</div>
+
+<script>
+    let currentMode = 'group', activeClass = '', targetWord = '', startTime = 0;
+    let studentData = {}; // Stores {name: {score: 0, time: 0}}
+    let submissions = []; // Stores {name: "", answer: "", time: 0}
+
+    function selectClass(btn) {
+        activeClass = btn.innerText;
+        document.getElementById('headerClass').innerText = "Class " + activeClass;
+        document.querySelectorAll('.btn-class').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        updateQR();
+    }
+
+    function setMode(m) {
+        currentMode = m;
+        document.getElementById('mGroup').classList.toggle('active', m === 'group');
+        document.getElementById('mIndiv').classList.toggle('active', m === 'indiv');
+        updateQR();
+    }
+
+    function updateQR() {
+        if(!activeClass) return;
+        document.getElementById('qrcode').innerHTML = "";
+        new QRCode(document.getElementById("qrcode"), {
+            text: window.location.href.split('?')[0] + "?role=student&class=" + activeClass + "&mode=" + currentMode,
+            width: 180, height: 180
+        });
+    }
+
+    // Word Bank Management
+    document.getElementById('wordInput').addEventListener('input', function() {
+        const list = this.value.split(',').map(s => s.trim()).filter(s => s);
+        const sel = document.getElementById('wordSelect');
+        sel.innerHTML = '<option>Choose word for round...</option>';
+        list.forEach(w => {
+            let o = document.createElement('option'); o.value = w; o.innerText = w;
+            sel.appendChild(o);
+        });
+    });
+
+    function startRound() {
+        targetWord = document.getElementById('wordSelect').value;
+        if(targetWord.includes("Choose")) return alert("Select a word first!");
+        
+        submissions = []; startTime = Date.now();
+        let timeLeft = 30;
+        let countdown = setInterval(() => {
+            timeLeft--;
+            document.getElementById('timerDisplay').innerText = timeLeft;
+            if(timeLeft <= 0) { clearInterval(countdown); alert("Round Ended!"); }
+        }, 1000);
+    }
+
+    function calculateResults() {
+        // This simulates a Kahoot-style ranking based on Correct Answer + Speed
+        const list = document.getElementById('rankBody');
+        list.innerHTML = "";
+        
+        // Sorting logic: Accuracy (matching targetWord) then Speed (lowest time)
+        submissions.sort((a,b) => a.time - b.time);
+        
+        submissions.forEach((sub, i) => {
+            const isCorrect = sub.answer.toLowerCase() === targetWord.toLowerCase();
+            const score = isCorrect ? 100 : 0;
+            const row = `<tr class="${i===0?'top-rank':''}">
+                <td>${i+1}</td><td>${sub.name}</td><td>${sub.time}s</td><td>${score}</td>
+            </tr>`;
+            list.innerHTML += row;
+        });
+    }
+
+    function exportCSV() {
+        const title = currentMode === 'group' ? `Class${activeClass}-GroupNum` : `Class${activeClass}-${studentData.name || 'Student'}`;
+        let csv = "Rank,Name,Time,Score\n";
+        document.querySelectorAll('#rankBody tr').forEach(tr => {
+            csv += Array.from(tr.cells).map(td => td.innerText).join(",") + "\n";
+        });
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = title + ".csv";
+        a.click();
